@@ -1,2 +1,60 @@
-# Google App Engine generated folder
-appengine-generated/
+
+from flask import Flask, request, jsonify
+from datetime import datetime, timezone
+import csv
+import os
+
+app = Flask(__name__)
+
+LOG_FILE = "visitor_logs.csv"
+
+def save_visit(ip, browser):
+    file_exists = os.path.isfile(LOG_FILE)
+
+    with open(LOG_FILE, "a", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        if not file_exists:
+            writer.writerow(["Timestamp", "IP Address", "Browser"])
+
+        writer.writerow([
+            datetime.now(timezone.utc).isoformat(),
+            ip,
+            browser
+        ])
+
+@app.route("/analytics", methods=["POST"])
+def analytics():
+    data = request.get_json(silent=True) or {}
+
+    if data.get("consent") is not True:
+        return jsonify({"error": "Consent required"}), 403
+
+    ip = request.remote_addr or "Unknown"
+    browser = request.headers.get("User-Agent", "Unknown")
+
+    save_visit(ip, browser)
+
+    return jsonify({"status": "Visit recorded"})
+
+@app.route("/")
+def home():
+    return """
+    <h1>Classychaos Visitor Analytics</h1>
+    <p>Visitor analytics with consent.</p>
+    <button onclick="recordVisit()">Accept analytics</button>
+
+    <script>
+    function recordVisit() {
+        fetch('/analytics', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({consent: true})
+        });
+    }
+    </script>
+    """
+
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=False)
+pip install flask python ip_logger.py
